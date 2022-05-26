@@ -15,12 +15,8 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeAWSCore
-import DynamoDBModel
-import SmokeHTTPClient
-import Logging
-import CollectionConcurrencyKit
+import AWSDynamoDB
+import ClientRuntime
 
 // ExecuteStatement has a maximum of 50 of decomposed read operations per request
 private let maximumKeysPerExecuteStatement = 50
@@ -61,8 +57,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 
                 do {
                     items = try outputAttributeValues.map { values in
-                        let attributeValue = DynamoDBModel.AttributeValue(M: values)
-                        
+                        let attributeValue = AWSDynamoDB.DynamoDbClientTypes.AttributeValue.m(values)
+
                         let decodedItem: ReturnTypeDecodable<ReturnedType> = try DynamoDBDecoder().decode(attributeValue)
                                                         
                         return decodedItem.decodedValue
@@ -76,8 +72,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 return ([], nextToken)
             }
         } catch {
-            if let typedError = error as? DynamoDBError {
-                throw typedError.asSmokeDynamoDBError()
+            if case SdkError<ExecuteStatementOutputError>.service(let serviceError, _) = error {
+                throw SmokeDynamoDBError.dynamoDBExecuteStatementError(cause: serviceError)
             }
             
             throw error.asUnrecognizedSmokeDynamoDBError()
@@ -136,8 +132,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 
                 do {
                     items = try outputAttributeValues.map { values in
-                        let attributeValue = DynamoDBModel.AttributeValue(M: values)
-                        
+                        let attributeValue = AWSDynamoDB.DynamoDbClientTypes.AttributeValue.m(values)
+
                         return try DynamoDBDecoder().decode(attributeValue)
                     }
                 } catch {
@@ -149,8 +145,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 return ([], nextToken)
             }
         } catch {
-            if let typedError = error as? DynamoDBError {
-                throw typedError.asSmokeDynamoDBError()
+            if case SdkError<ExecuteStatementOutputError>.service(let serviceError, _) = error {
+                throw SmokeDynamoDBError.dynamoDBExecuteStatementError(cause: serviceError)
             }
             
             throw error.asUnrecognizedSmokeDynamoDBError()

@@ -16,10 +16,6 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeHTTPClient
-import DynamoDBModel
-
 internal actor InMemoryDynamoDBCompositePrimaryKeysProjectionStore {
     public var keys: [Any] = []
 

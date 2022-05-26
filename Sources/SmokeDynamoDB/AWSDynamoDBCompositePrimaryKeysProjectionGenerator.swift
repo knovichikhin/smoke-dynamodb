@@ -15,101 +15,45 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
+import AWSClientRuntime
 import Logging
-import DynamoDBClient
-import DynamoDBModel
-import SmokeAWSCore
-import SmokeAWSHttp
-import SmokeHTTPClient
-import AsyncHTTPClient
 
 public class AWSDynamoDBCompositePrimaryKeysProjectionGenerator {
-    internal let dynamodbGenerator: _AWSDynamoDBClientGenerator
+    private let dynamodbGenerator: ClientGenerator
     internal let targetTableName: String
-
-    public init(accessKeyId: String, secretAccessKey: String,
-                region: AWSRegion,
-                endpointHostName: String, endpointPort: Int = 443,
-                requiresTLS: Bool? = nil, tableName: String,
-                connectionTimeoutSeconds: Int64 = 10,
-                retryConfiguration: HTTPClientRetryConfiguration = .default,
-                eventLoopProvider: HTTPClient.EventLoopGroupProvider = .createNew,
-                reportingConfiguration: SmokeAWSCore.SmokeAWSClientReportingConfiguration<DynamoDBModel.DynamoDBModelOperations>
-                    = SmokeAWSClientReportingConfiguration<DynamoDBModelOperations>()) {
-        let staticCredentials = StaticCredentials(accessKeyId: accessKeyId,
-                                                  secretAccessKey: secretAccessKey,
-                                                  sessionToken: nil)
-
-        self.dynamodbGenerator = _AWSDynamoDBClientGenerator(credentialsProvider: staticCredentials,
-                                                             awsRegion: region,
-                                                             endpointHostName: endpointHostName,
-                                                             endpointPort: endpointPort, requiresTLS: requiresTLS,
-                                                             connectionTimeoutSeconds: connectionTimeoutSeconds,
-                                                             retryConfiguration: retryConfiguration,
-                                                             eventLoopProvider: eventLoopProvider,
-                                                             reportingConfiguration: reportingConfiguration)
+    
+    private enum ClientGenerator {
+        case fromConfig(AWSClientRuntime.AWSClientConfiguration)
+        case fromRegion(String)
+        case asDefault
+    }
+    
+    public init(config: AWSClientRuntime.AWSClientConfiguration,
+                tableName: String) {
+        self.dynamodbGenerator = .fromConfig(config)
+        self.targetTableName = tableName
+    }
+    
+    public init(region: String,
+                tableName: String) {
+        self.dynamodbGenerator = .fromRegion(region)
+        self.targetTableName = tableName
+    }
+    
+    public init(tableName: String) async throws {
+        self.dynamodbGenerator = .asDefault
         self.targetTableName = tableName
     }
 
-    public init(credentialsProvider: CredentialsProvider,
-                region: AWSRegion,
-                endpointHostName: String, endpointPort: Int = 443,
-                requiresTLS: Bool? = nil, tableName: String,
-                connectionTimeoutSeconds: Int64 = 10,
-                retryConfiguration: HTTPClientRetryConfiguration = .default,
-                eventLoopProvider: HTTPClient.EventLoopGroupProvider = .createNew,
-                reportingConfiguration: SmokeAWSCore.SmokeAWSClientReportingConfiguration<DynamoDBModel.DynamoDBModelOperations>
-                    = SmokeAWSClientReportingConfiguration<DynamoDBModelOperations>()) {
-        self.dynamodbGenerator = _AWSDynamoDBClientGenerator(credentialsProvider: credentialsProvider,
-                                                             awsRegion: region,
-                                                             endpointHostName: endpointHostName,
-                                                             endpointPort: endpointPort, requiresTLS: requiresTLS,
-                                                             connectionTimeoutSeconds: connectionTimeoutSeconds,
-                                                             retryConfiguration: retryConfiguration,
-                                                             eventLoopProvider: eventLoopProvider,
-                                                             reportingConfiguration: reportingConfiguration)
-        self.targetTableName = tableName
-    }
-
-    /**
-     Gracefully shuts down the client behind this table. This function is idempotent and
-     will handle being called multiple times. Will return when shutdown is complete.
-     */
-    public func shutdown() async throws {
-        try await self.dynamodbGenerator.shutdown()
-    }
-    
-    public func with<NewInvocationReportingType: HTTPClientCoreInvocationReporting>(
-            reporting: NewInvocationReportingType) -> AWSDynamoDBCompositePrimaryKeysProjection<NewInvocationReportingType> {
-        return AWSDynamoDBCompositePrimaryKeysProjection<NewInvocationReportingType>(
-            dynamodb: self.dynamodbGenerator.with(reporting: reporting),
-            targetTableName: self.targetTableName,
-            logger: reporting.logger)
-    }
-    
-    public func with<NewTraceContextType: InvocationTraceContext>(
-            logger: Logging.Logger,
-            internalRequestId: String = "none",
-            traceContext: NewTraceContextType)
-    -> AWSDynamoDBCompositePrimaryKeysProjection<StandardHTTPClientCoreInvocationReporting<NewTraceContextType>> {
-        let reporting = StandardHTTPClientCoreInvocationReporting(
-            logger: logger,
-            internalRequestId: internalRequestId,
-            traceContext: traceContext)
-
-        return with(reporting: reporting)
-    }
-
-    public func with(
-            logger: Logging.Logger,
-            internalRequestId: String = "none")
-    -> AWSDynamoDBCompositePrimaryKeysProjection<StandardHTTPClientCoreInvocationReporting<AWSClientInvocationTraceContext>> {
-        let reporting = StandardHTTPClientCoreInvocationReporting(
-            logger: logger,
-            internalRequestId: internalRequestId,
-            traceContext: AWSClientInvocationTraceContext())
-
-        return with(reporting: reporting)
+    public func with(logger: Logging.Logger) async throws
+    -> AWSDynamoDBCompositePrimaryKeysProjection {
+        switch self.dynamodbGenerator {
+        case .fromConfig(let config):
+            return AWSDynamoDBCompositePrimaryKeysProjection(config: config, tableName: self.targetTableName, logger: logger)
+        case .fromRegion(let region):
+            return try AWSDynamoDBCompositePrimaryKeysProjection(region: region, tableName: self.targetTableName, logger: logger)
+        case .asDefault:
+            return try await AWSDynamoDBCompositePrimaryKeysProjection(tableName: self.targetTableName, logger: logger)
+        }
     }
 }

@@ -14,9 +14,6 @@
 //  PolymorphicOperationReturnType.swift
 //  SmokeDynamoDB
 //
-import Foundation
-import SmokeHTTPClient
-import DynamoDBModel
 
 public protocol BatchCapableReturnType {
     associatedtype AttributesType: PrimaryKeyAttributes

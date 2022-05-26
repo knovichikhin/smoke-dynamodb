@@ -2,12 +2,21 @@
   "object": {
     "pins": [
       {
-        "package": "async-http-client",
-        "repositoryURL": "https://github.com/swift-server/async-http-client.git",
+        "package": "AwsCrt",
+        "repositoryURL": "https://github.com/awslabs/aws-crt-swift.git",
         "state": {
           "branch": null,
-          "revision": "70826d038d5bdc3142a386b735792d87ef7a5dfc",
-          "version": "1.8.1"
+          "revision": "d654b82a55aec736ad8b4354027acab17394a060",
+          "version": "0.2.2"
+        }
+      },
+      {
+        "package": "AWSSwiftSDK",
+        "repositoryURL": "https://github.com/awslabs/aws-sdk-swift",
+        "state": {
+          "branch": null,
+          "revision": "e907e654466a8bfafbcd79a78cb87964abecb1a0",
+          "version": "0.2.4"
         }
       },
       {
@@ -20,30 +29,21 @@
         }
       },
       {
-        "package": "smoke-aws",
-        "repositoryURL": "https://github.com/amzn/smoke-aws.git",
+        "package": "ClientRuntime",
+        "repositoryURL": "https://github.com/awslabs/smithy-swift.git",
         "state": {
           "branch": null,
-          "revision": "3181f04b53977676581a30977c104d45daa8de06",
-          "version": "2.42.37"
+          "revision": "5c76b8f05f70f2b24276a2ae192fa8bd9c04beb6",
+          "version": "0.2.3"
         }
       },
       {
-        "package": "smoke-http",
-        "repositoryURL": "https://github.com/amzn/smoke-http.git",
+        "package": "swift-collections",
+        "repositoryURL": "https://github.com/apple/swift-collections",
         "state": {
           "branch": null,
-          "revision": "fba50e336245de832d81484e0514a92a8c8bf8bd",
-          "version": "2.12.0"
-        }
-      },
-      {
-        "package": "swift-crypto",
-        "repositoryURL": "https://github.com/apple/swift-crypto.git",
-        "state": {
-          "branch": null,
-          "revision": "3bea268b223651c4ab7b7b9ad62ef9b2d4143eb6",
-          "version": "1.1.6"
+          "revision": "48254824bb4248676bf7ce56014ff57b142b77eb",
+          "version": "1.0.2"
         }
       },
       {
@@ -65,57 +65,12 @@
         }
       },
       {
-        "package": "swift-nio",
-        "repositoryURL": "https://github.com/apple/swift-nio.git",
+        "package": "XMLCoder",
+        "repositoryURL": "https://github.com/MaxDesiatov/XMLCoder.git",
         "state": {
           "branch": null,
-          "revision": "51c3fc2e4a0fcdf4a25089b288dd65b73df1b0ef",
-          "version": "2.37.0"
-        }
-      },
-      {
-        "package": "swift-nio-extras",
-        "repositoryURL": "https://github.com/apple/swift-nio-extras.git",
-        "state": {
-          "branch": null,
-          "revision": "f73ca5ee9c6806800243f1ac415fcf82de9a4c91",
-          "version": "1.10.2"
-        }
-      },
-      {
-        "package": "swift-nio-http2",
-        "repositoryURL": "https://github.com/apple/swift-nio-http2.git",
-        "state": {
-          "branch": null,
-          "revision": "6e94a7be32891d1b303a3fcfde8b5bf64d162e74",
-          "version": "1.19.1"
-        }
-      },
-      {
-        "package": "swift-nio-ssl",
-        "repositoryURL": "https://github.com/apple/swift-nio-ssl.git",
-        "state": {
-          "branch": null,
-          "revision": "52a486ff6de9bc3e26bf634c5413c41c5fa89ca5",
-          "version": "2.17.2"
-        }
-      },
-      {
-        "package": "swift-nio-transport-services",
-        "repositoryURL": "https://github.com/apple/swift-nio-transport-services.git",
-        "state": {
-          "branch": null,
-          "revision": "8ab824b140d0ebcd87e9149266ddc353e3705a3e",
-          "version": "1.11.4"
-        }
-      },
-      {
-        "package": "XMLCoding",
-        "repositoryURL": "https://github.com/LiveUI/XMLCoding.git",
-        "state": {
-          "branch": null,
-          "revision": "f0fbfe17e73f329e13a6133ff5437f7b174049fd",
-          "version": "0.4.1"
+          "revision": "f30119af03996939cc4f54e0bf0dda9f88a84da5",
+          "version": "0.13.1"
         }
       }
     ]

@@ -16,7 +16,7 @@
 //
 import XCTest
 @testable import SmokeDynamoDB
-import DynamoDBModel
+import AWSDynamoDB
 
 fileprivate let dynamodbEncoder = DynamoDBEncoder()
 fileprivate let dynamodbDecoder = DynamoDBDecoder()
@@ -52,7 +52,7 @@ class SmokeDynamoDBTests: XCTestCase {
         let inputData = serializedTypeADatabaseItem.data(using: .utf8)!
         
         guard let jsonAttributeValue = assertNoThrow(
-            try jsonDecoder.decode(DynamoDBModel.AttributeValue.self, from: inputData)) else {
+            try jsonDecoder.decode(AWSDynamoDB.DynamoDbClientTypes.AttributeValue.self, from: inputData)) else {
                 return
         }
         
@@ -66,14 +66,19 @@ class SmokeDynamoDBTests: XCTestCase {
                 return
         }
         
-        XCTAssertEqual(decodeAttributeValue.M!.count, jsonAttributeValue.M!.count)
+        switch (decodeAttributeValue, jsonAttributeValue) {
+        case (.m(let left), .m(let right)):
+            XCTAssertEqual(left.count, right.count)
+        default:
+            XCTFail()
+        }
     }
     
     func testEncodeTypedItemWithTimeToLive() {
         let inputData = serializedTypeADatabaseItemWithTimeToLive.data(using: .utf8)!
         
         guard let jsonAttributeValue = assertNoThrow(
-            try jsonDecoder.decode(DynamoDBModel.AttributeValue.self, from: inputData)) else {
+            try jsonDecoder.decode(AWSDynamoDB.DynamoDbClientTypes.AttributeValue.self, from: inputData)) else {
             return
         }
         
@@ -82,19 +87,21 @@ class SmokeDynamoDBTests: XCTestCase {
             return
         }
         
-        guard let decodeAttributeValue = assertNoThrow(
-            try dynamodbEncoder.encode(databaseItem)) else {
-            return
-        }
+        XCTAssertEqual(databaseItem.rowValue.firstly, "aaa")
+        XCTAssertEqual(databaseItem.rowValue.secondly, "bbb")
+        XCTAssertEqual(databaseItem.rowStatus.rowVersion, 5)
         
-        XCTAssertEqual(decodeAttributeValue.M!.count, jsonAttributeValue.M!.count)
+        // create an updated item from the decoded one
+        let newItem = TypeA(firstly: "hello", secondly: "world!!")
+        let updatedItem = databaseItem.createUpdatedItem(withValue: newItem)
+        XCTAssertEqual(updatedItem.rowStatus.rowVersion, 6)
     }
 
     func testTypedDatabaseItem() {
         let inputData = serializedTypeADatabaseItem.data(using: .utf8)!
         
         guard let attributeValue = assertNoThrow(
-                try jsonDecoder.decode(DynamoDBModel.AttributeValue.self, from: inputData)) else {
+                try jsonDecoder.decode(AWSDynamoDB.DynamoDbClientTypes.AttributeValue.self, from: inputData)) else {
             return
         }
         
@@ -118,7 +125,7 @@ class SmokeDynamoDBTests: XCTestCase {
         let inputData = serializedTypeADatabaseItemWithTimeToLive.data(using: .utf8)!
         
         guard let attributeValue = assertNoThrow(
-            try jsonDecoder.decode(DynamoDBModel.AttributeValue.self, from: inputData)) else {
+            try jsonDecoder.decode(AWSDynamoDB.DynamoDbClientTypes.AttributeValue.self, from: inputData)) else {
             return
         }
         
@@ -146,7 +153,7 @@ class SmokeDynamoDBTests: XCTestCase {
         let inputData = serializedPolymorphicDatabaseItemList.data(using: .utf8)!
         
         guard let attributeValues = assertNoThrow(
-                try jsonDecoder.decode([DynamoDBModel.AttributeValue].self, from: inputData)) else {
+                try jsonDecoder.decode([AWSDynamoDB.DynamoDbClientTypes.AttributeValue].self, from: inputData)) else {
             return
         }
         
@@ -196,7 +203,7 @@ class SmokeDynamoDBTests: XCTestCase {
         let inputData = serializedPolymorphicDatabaseItemList.data(using: .utf8)!
         
         guard let attributeValues = assertNoThrow(
-                try jsonDecoder.decode([DynamoDBModel.AttributeValue].self, from: inputData)) else {
+                try jsonDecoder.decode([AWSDynamoDB.DynamoDbClientTypes.AttributeValue].self, from: inputData)) else {
             return
         }
         
@@ -219,7 +226,7 @@ class SmokeDynamoDBTests: XCTestCase {
         let inputData = serializedPolymorphicDatabaseItemListWithIndex.data(using: .utf8)!
         
         guard let attributeValues = assertNoThrow(
-                try jsonDecoder.decode([DynamoDBModel.AttributeValue].self, from: inputData)) else {
+                try jsonDecoder.decode([AWSDynamoDB.DynamoDbClientTypes.AttributeValue].self, from: inputData)) else {
             return
         }
         

@@ -15,12 +15,8 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeAWSCore
-import DynamoDBModel
-import SmokeHTTPClient
+import AWSDynamoDB
 import Logging
-import CollectionConcurrencyKit
 
 // BatchGetItem has a maximum of 100 of items per request
 // https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
@@ -39,16 +35,22 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
     private class GetItemsRetriable<ReturnedType: PolymorphicOperationReturnType & BatchCapableReturnType> {
         typealias OutputType = [CompositePrimaryKey<ReturnedType.AttributesType>: ReturnedType]
         
-        let dynamodb: _AWSDynamoDBClient<InvocationReportingType>
+        let dynamodb: DynamoDbClient
+        let retryConfiguration: RetryConfiguration
+        let logger: Logger
                 
         var retriesRemaining: Int
         var input: BatchGetItemInput
         var outputItems: OutputType = [:]
         
         init(initialInput: BatchGetItemInput,
-             dynamodb: _AWSDynamoDBClient<InvocationReportingType>) {
+             dynamodb: DynamoDbClient,
+             retryConfiguration: RetryConfiguration,
+             logger: Logger) {
             self.dynamodb = dynamodb
-            self.retriesRemaining = dynamodb.retryConfiguration.numRetries
+            self.retryConfiguration = retryConfiguration
+            self.logger = logger
+            self.retriesRemaining = retryConfiguration.numRetries
             self.input = initialInput
         }
         
@@ -59,8 +61,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
             let errors = output.responses?.flatMap({ (tableName, itemList) -> [Error] in
                 return itemList.compactMap { values -> Error? in
                     do {
-                        let attributeValue = DynamoDBModel.AttributeValue(M: values)
-                        
+                        let attributeValue = AWSDynamoDB.DynamoDbClientTypes.AttributeValue.m(values)
+
                         let decodedItem: ReturnTypeDecodable<ReturnedType> = try DynamoDBDecoder().decode(attributeValue)
                         let decodedValue = decodedItem.decodedValue
                         let key = decodedValue.getItemKey()
@@ -87,17 +89,15 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
         }
         
         func getMoreResults() async throws -> OutputType {
-            let logger = self.dynamodb.reporting.logger
-            
             // if there are retries remaining
             if retriesRemaining > 0 {
                 // determine the required interval
-                let retryInterval = Int(self.dynamodb.retryConfiguration.getRetryInterval(retriesRemaining: retriesRemaining))
+                let retryInterval = Int(self.retryConfiguration.getRetryInterval(retriesRemaining: retriesRemaining))
                 
                 let currentRetriesRemaining = retriesRemaining
                 retriesRemaining -= 1
                 
-                let remainingKeysCount = self.input.requestItems.count
+                let remainingKeysCount = self.input.requestItems?.count ?? 0
                 
                 logger.warning(
                     "Request retried for remaining items: \(remainingKeysCount). Remaining retries: \(currentRetriesRemaining). Retrying in \(retryInterval) ms.")
@@ -107,7 +107,7 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 return try await batchGetItem()
             }
             
-            throw SmokeDynamoDBError.batchAPIExceededRetries(retryCount: self.dynamodb.retryConfiguration.numRetries)
+            throw SmokeDynamoDBError.batchAPIExceededRetries(retryCount: self.retryConfiguration.numRetries)
         }
     }
     
@@ -119,9 +119,10 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
         let maps = try await chunkedList.concurrentMap { chunk -> [CompositePrimaryKey<ReturnedType.AttributesType>: ReturnedType] in
             let input = try self.getInputForBatchGetItem(forKeys: chunk)
             
-            let retriable = GetItemsRetriable<ReturnedType>(
-                initialInput: input,
-                dynamodb: self.dynamodb)
+            let retriable = GetItemsRetriable<ReturnedType>(initialInput: input,
+                                                            dynamodb: self.dynamodb,
+                                                            retryConfiguration: self.retryConfiguration,
+                                                            logger: self.logger)
             
             return try await retriable.batchGetItem()
         }

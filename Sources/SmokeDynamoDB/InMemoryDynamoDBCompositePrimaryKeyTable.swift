@@ -17,8 +17,6 @@
 //
 
 import Foundation
-import SmokeHTTPClient
-import DynamoDBModel
 
 public protocol PolymorphicOperationReturnTypeConvertable {
     var createDate: Foundation.Date { get }

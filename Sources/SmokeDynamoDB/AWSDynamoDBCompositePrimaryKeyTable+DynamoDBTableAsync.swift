@@ -16,10 +16,8 @@
 //
 
 import Foundation
-import SmokeAWSCore
-import DynamoDBModel
-import SmokeHTTPClient
-import Logging
+import AWSDynamoDB
+import ClientRuntime
 
 /// DynamoDBTable conformance async functions
 public extension AWSDynamoDBCompositePrimaryKeyTable {
@@ -33,8 +31,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
     func clobberItem<AttributesType, ItemType>(_ item: TypedDatabaseItem<AttributesType, ItemType>) async throws {
         let attributes = try getAttributes(forItem: item)
         
-        let putItemInput = DynamoDBModel.PutItemInput(item: attributes,
-                                                      tableName: targetTableName)
+        let putItemInput = AWSDynamoDB.PutItemInput(item: attributes,
+                                                    tableName: targetTableName)
         
         try await putItem(forInput: putItemInput, withKey: item.compositePrimaryKey)
     }
@@ -60,7 +58,7 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 
                 do {
                     let decodedItem: TypedDatabaseItem<AttributesType, ItemType>? =
-                        try DynamoDBDecoder().decode(DynamoDBModel.AttributeValue(M: item))
+                        try DynamoDBDecoder().decode(AWSDynamoDB.DynamoDbClientTypes.AttributeValue.m(item))
                     return decodedItem
                 } catch {
                     throw error.asUnrecognizedSmokeDynamoDBError()
@@ -71,8 +69,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 return nil
             }
         } catch {
-            if let typedError = error as? DynamoDBError {
-                throw typedError.asSmokeDynamoDBError()
+            if case SdkError<GetItemOutputError>.service(let serviceError, _) = error {
+                throw SmokeDynamoDBError.dynamoDBGetError(cause: serviceError)
             }
             
             throw error.asUnrecognizedSmokeDynamoDBError()
@@ -158,11 +156,11 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                                                              exclusiveStartKey: String?,
                                                              consistentRead: Bool) async throws
     -> ([ReturnedType], String?) {
-        let queryInput = try DynamoDBModel.QueryInput.forSortKeyCondition(partitionKey: partitionKey, targetTableName: targetTableName,
-                                                                          primaryKeyType: ReturnedType.AttributesType.self,
-                                                                          sortKeyCondition: sortKeyCondition, limit: limit,
-                                                                          scanIndexForward: scanIndexForward, exclusiveStartKey: exclusiveStartKey,
-                                                                          consistentRead: consistentRead)
+        let queryInput = try AWSDynamoDB.QueryInput.forSortKeyCondition(partitionKey: partitionKey, targetTableName: targetTableName,
+                                                                        primaryKeyType: ReturnedType.AttributesType.self,
+                                                                        sortKeyCondition: sortKeyCondition, limit: limit,
+                                                                        scanIndexForward: scanIndexForward, exclusiveStartKey: exclusiveStartKey,
+                                                                        consistentRead: consistentRead)
         
         let logMessage = "dynamodb.query with partitionKey: \(partitionKey), " +
             "sortKeyCondition: \(sortKeyCondition.debugDescription), and table name \(targetTableName)."
@@ -191,8 +189,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 
                 do {
                     items = try outputAttributeValues.map { values in
-                        let attributeValue = DynamoDBModel.AttributeValue(M: values)
-                        
+                        let attributeValue = AWSDynamoDB.DynamoDbClientTypes.AttributeValue.m(values)
+
                         let decodedItem: ReturnTypeDecodable<ReturnedType> = try DynamoDBDecoder().decode(attributeValue)
                                                         
                         return decodedItem.decodedValue
@@ -206,26 +204,34 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 return ([], lastEvaluatedKey)
             }
         } catch {
-            if let typedError = error as? DynamoDBError {
-                throw typedError.asSmokeDynamoDBError()
+            if case SdkError<QueryOutputError>.service(let serviceError, _) = error {
+                throw SmokeDynamoDBError.dynamoDBQueryError(cause: serviceError)
             }
             
             throw error.asUnrecognizedSmokeDynamoDBError()
         }
     }
     
-    private func putItem<AttributesType>(forInput putItemInput: DynamoDBModel.PutItemInput,
+    private func putItem<AttributesType>(forInput putItemInput: AWSDynamoDB.PutItemInput,
                                          withKey compositePrimaryKey: CompositePrimaryKey<AttributesType>) async throws {
-        let logMessage = "dynamodb.putItem with item: \(putItemInput.item) and table name \(targetTableName)."
+        guard let inputItem = putItemInput.item else {
+            // nothing to do
+            return
+        }
+        
+        let logMessage = "dynamodb.putItem with item: \(inputItem) and table name \(targetTableName)."
         self.logger.debug("\(logMessage)")
         
         do {
             _ = try await self.dynamodb.putItem(input: putItemInput)
-        } catch DynamoDBError.conditionalCheckFailed(let errorPayload) {
-            throw SmokeDynamoDBError.conditionalCheckFailed(partitionKey: compositePrimaryKey.partitionKey,
-                                                            sortKey: compositePrimaryKey.sortKey,
-                                                            message: errorPayload.message)
         } catch {
+            if case SdkError<PutItemOutputError>.service(let serviceError, _) = error,
+               case .conditionalCheckFailedException(let errorPayload) = serviceError {
+                throw SmokeDynamoDBError.conditionalCheckFailed(partitionKey: compositePrimaryKey.partitionKey,
+                                                                sortKey: compositePrimaryKey.sortKey,
+                                                                message: errorPayload.message)
+            }
+
             self.logger.warning("Error from AWSDynamoDBTable: \(error)")
 
             throw SmokeDynamoDBError.unexpectedError(cause: error)
@@ -280,7 +286,7 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                                                         exclusiveStartKey: String?,
                                                         consistentRead: Bool) async throws
     -> ([TypedDatabaseItem<AttributesType, ItemType>], String?) {
-        let queryInput = try DynamoDBModel.QueryInput.forSortKeyCondition(
+        let queryInput = try AWSDynamoDB.QueryInput.forSortKeyCondition(
                 partitionKey: partitionKey, targetTableName: targetTableName,
                 primaryKeyType: AttributesType.self,
                 sortKeyCondition: sortKeyCondition, limit: limit,
@@ -314,8 +320,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 
                 do {
                     items = try outputAttributeValues.map { values in
-                        let attributeValue = DynamoDBModel.AttributeValue(M: values)
-                        
+                        let attributeValue = AWSDynamoDB.DynamoDbClientTypes.AttributeValue.m(values)
+
                         return try DynamoDBDecoder().decode(attributeValue)
                     }
                 } catch {
@@ -327,8 +333,8 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
                 return ([], lastEvaluatedKey)
             }
         } catch {
-            if let typedError = error as? DynamoDBError {
-                throw typedError.asSmokeDynamoDBError()
+            if case SdkError<QueryOutputError>.service(let serviceError, _) = error {
+                throw SmokeDynamoDBError.dynamoDBQueryError(cause: serviceError)
             }
             
             throw error.asUnrecognizedSmokeDynamoDBError()

@@ -15,12 +15,9 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeAWSCore
-import DynamoDBModel
-import SmokeHTTPClient
-import Logging
-import CollectionConcurrencyKit
+import AWSDynamoDB
+
+private typealias BatchStatementRequest = AWSDynamoDB.DynamoDbClientTypes.BatchStatementRequest
 
 // BatchExecuteStatement has a maximum of 25 statements
 private let maximumUpdatesPerExecuteStatement = 25
@@ -60,7 +57,7 @@ public extension AWSDynamoDBCompositePrimaryKeyTable {
         try throwOnBatchExecuteStatementErrors(response: response)
     }
     
-    func throwOnBatchExecuteStatementErrors(response: DynamoDBModel.BatchExecuteStatementOutput) throws {
+    func throwOnBatchExecuteStatementErrors(response: AWSDynamoDB.BatchExecuteStatementOutputResponse) throws {
         var errorMap: [String: Int] = [:]
         var errorCount = 0
         response.responses?.forEach { response in

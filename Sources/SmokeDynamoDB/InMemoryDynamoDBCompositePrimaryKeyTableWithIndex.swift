@@ -16,11 +16,6 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeHTTPClient
-import DynamoDBModel
-import CollectionConcurrencyKit
-
 public enum GSIError: Error {
     case unknownIndex(name: String)
 }

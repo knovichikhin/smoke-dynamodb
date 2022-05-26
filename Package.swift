@@ -26,8 +26,8 @@ let package = Package(
             targets: ["SmokeDynamoDB"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/amzn/smoke-aws.git", from: "2.42.37"),
-        .package(url: "https://github.com/amzn/smoke-http.git", from: "2.10.0"),
+        .package(name: "AWSSwiftSDK", url: "https://github.com/awslabs/aws-sdk-swift", from: "0.2.4"),
+        .package(name: "ClientRuntime", url: "https://github.com/awslabs/smithy-swift.git", from: "0.2.3"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-metrics.git", "1.0.0"..<"3.0.0"),
         .package(url: "https://github.com/JohnSundell/CollectionConcurrencyKit", from :"0.2.0")
@@ -37,15 +37,13 @@ let package = Package(
             name: "SmokeDynamoDB", dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Metrics", package: "swift-metrics"),
-                .product(name: "DynamoDBClient", package: "smoke-aws"),
-                .product(name: "SmokeHTTPClient", package: "smoke-http"),
-                .product(name: "_SmokeAWSHttpConcurrency", package: "smoke-aws"),
+                .product(name: "AWSDynamoDB", package: "AWSSwiftSDK"),
+                .product(name: "ClientRuntime", package: "ClientRuntime"),
                 .product(name: "CollectionConcurrencyKit", package: "CollectionConcurrencyKit")
             ]),
         .testTarget(
             name: "SmokeDynamoDBTests", dependencies: [
                 .target(name: "SmokeDynamoDB"),
-                .product(name: "SmokeHTTPClient", package: "smoke-http"),
             ]),
     ],
     swiftLanguageVersions: [.v5]

@@ -15,183 +15,149 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
+import AWSDynamoDB
+import AWSClientRuntime
 import Logging
-import DynamoDBClient
-import DynamoDBModel
-import SmokeAWSCore
-import SmokeHTTPClient
-import AsyncHTTPClient
 
-public class AWSDynamoDBCompositePrimaryKeyTable<InvocationReportingType: HTTPClientCoreInvocationReporting>: DynamoDBCompositePrimaryKeyTable {
-    internal let dynamodb: _AWSDynamoDBClient<InvocationReportingType>
+public class AWSDynamoDBCompositePrimaryKeyTable: DynamoDBCompositePrimaryKeyTable {
+    internal let dynamodb: DynamoDbClient
     internal let targetTableName: String
+    internal let retryConfiguration: RetryConfiguration
     internal let logger: Logger
 
-    public init(accessKeyId: String, secretAccessKey: String,
-                region: AWSRegion, reporting: InvocationReportingType,
-                endpointHostName: String, endpointPort: Int = 443,
-                requiresTLS: Bool? = nil, tableName: String,
-                connectionTimeoutSeconds: Int64 = 10,
-                retryConfiguration: HTTPClientRetryConfiguration = .default,
-                eventLoopProvider: HTTPClient.EventLoopGroupProvider = .createNew,
-                reportingConfiguration: SmokeAWSCore.SmokeAWSClientReportingConfiguration<DynamoDBModel.DynamoDBModelOperations>
-                    = SmokeAWSClientReportingConfiguration<DynamoDBModelOperations>()) {
-        let staticCredentials = StaticCredentials(accessKeyId: accessKeyId,
-                                                  secretAccessKey: secretAccessKey,
-                                                  sessionToken: nil)
-
-        self.logger = reporting.logger
-        self.dynamodb = _AWSDynamoDBClient(credentialsProvider: staticCredentials,
-                                           awsRegion: region, reporting: reporting,
-                                           endpointHostName: endpointHostName,
-                                           endpointPort: endpointPort, requiresTLS: requiresTLS,
-                                           connectionTimeoutSeconds: connectionTimeoutSeconds,
-                                           retryConfiguration: retryConfiguration,
-                                           eventLoopProvider: eventLoopProvider,
-                                           reportingConfiguration: reportingConfiguration)
+    public init(config: AWSClientRuntime.AWSClientConfiguration,
+                tableName: String,
+                retryConfiguration: RetryConfiguration = .default,
+                logger: Logger) {
+        self.dynamodb = DynamoDbClient(config: config)
         self.targetTableName = tableName
+        self.retryConfiguration = retryConfiguration
+        self.logger = logger
 
-        self.logger.info("AWSDynamoDBTable created with region '\(region)' and hostname: '\(endpointHostName)'")
-    }
-
-    public init(credentialsProvider: CredentialsProvider,
-                region: AWSRegion, reporting: InvocationReportingType,
-                endpointHostName: String, endpointPort: Int = 443,
-                requiresTLS: Bool? = nil, tableName: String,
-                connectionTimeoutSeconds: Int64 = 10,
-                retryConfiguration: HTTPClientRetryConfiguration = .default,
-                eventLoopProvider: HTTPClient.EventLoopGroupProvider = .createNew,
-                reportingConfiguration: SmokeAWSCore.SmokeAWSClientReportingConfiguration<DynamoDBModel.DynamoDBModelOperations>
-                    = SmokeAWSClientReportingConfiguration<DynamoDBModelOperations>()) {
-        self.logger = reporting.logger
-        self.dynamodb = _AWSDynamoDBClient(credentialsProvider: credentialsProvider,
-                                           awsRegion: region, reporting: reporting,
-                                           endpointHostName: endpointHostName,
-                                           endpointPort: endpointPort, requiresTLS: requiresTLS,
-                                           connectionTimeoutSeconds: connectionTimeoutSeconds,
-                                           retryConfiguration: retryConfiguration,
-                                           eventLoopProvider: eventLoopProvider,
-                                           reportingConfiguration: reportingConfiguration)
-        self.targetTableName = tableName
-
-        self.logger.info("AWSDynamoDBTable created with region '\(region)' and hostname: '\(endpointHostName)'")
+        self.logger.info("AWSDynamoDBTable created with table name '\(tableName)'")
     }
     
-    internal init(dynamodb: _AWSDynamoDBClient<InvocationReportingType>,
-                  targetTableName: String,
-                  logger: Logger) {
-        self.dynamodb = dynamodb
-        self.targetTableName = targetTableName
+    public init(region: String,
+                tableName: String,
+                retryConfiguration: RetryConfiguration = .default,
+                logger: Logger) throws {
+        self.dynamodb = try DynamoDbClient(region: region)
+        self.targetTableName = tableName
+        self.retryConfiguration = retryConfiguration
         self.logger = logger
-    }
 
-    /**
-     Gracefully shuts down the client behind this table. This function is idempotent and
-     will handle being called multiple times. Will return when shutdown is complete.
-     */
-    public func shutdown() async throws {
-        try await self.dynamodb.shutdown()
+        self.logger.info("AWSDynamoDBTable created with table name '\(tableName)'")
+    }
+    
+    public init(tableName: String,
+                retryConfiguration: RetryConfiguration = .default,
+                logger: Logger) async throws {
+        self.dynamodb = try await DynamoDbClient()
+        self.targetTableName = tableName
+        self.retryConfiguration = retryConfiguration
+        self.logger = logger
+
+        self.logger.info("AWSDynamoDBTable created with table name '\(tableName)'")
     }
 
     internal func getInputForInsert<AttributesType, ItemType>(_ item: TypedDatabaseItem<AttributesType, ItemType>) throws
-        -> DynamoDBModel.PutItemInput {
-            let attributes = try getAttributes(forItem: item)
+            -> AWSDynamoDB.PutItemInput {
+                let attributes = try getAttributes(forItem: item)
 
-            let expressionAttributeNames = ["#pk": AttributesType.partitionKeyAttributeName, "#sk": AttributesType.sortKeyAttributeName]
-            let conditionExpression = "attribute_not_exists (#pk) AND attribute_not_exists (#sk)"
+                let expressionAttributeNames = ["#pk": AttributesType.partitionKeyAttributeName, "#sk": AttributesType.sortKeyAttributeName]
+                let conditionExpression = "attribute_not_exists (#pk) AND attribute_not_exists (#sk)"
 
-            return DynamoDBModel.PutItemInput(conditionExpression: conditionExpression,
+                return AWSDynamoDB.PutItemInput(conditionExpression: conditionExpression,
+                                                  expressionAttributeNames: expressionAttributeNames,
+                                                  item: attributes,
+                                                  tableName: targetTableName)
+        }
+
+        internal func getInputForUpdateItem<AttributesType, ItemType>(
+                newItem: TypedDatabaseItem<AttributesType, ItemType>,
+                existingItem: TypedDatabaseItem<AttributesType, ItemType>) throws -> AWSDynamoDB.PutItemInput {
+            let attributes = try getAttributes(forItem: newItem)
+
+            let expressionAttributeNames = [
+                "#rowversion": RowStatus.CodingKeys.rowVersion.stringValue,
+                "#createdate": TypedDatabaseItem<AttributesType, ItemType>.CodingKeys.createDate.stringValue]
+            let expressionAttributeValues = [
+                ":versionnumber": AWSDynamoDB.DynamoDbClientTypes.AttributeValue.n(String(existingItem.rowStatus.rowVersion)),
+                ":creationdate": AWSDynamoDB.DynamoDbClientTypes.AttributeValue.s(existingItem.createDate.iso8601)]
+
+            let conditionExpression = "#rowversion = :versionnumber AND #createdate = :creationdate"
+
+            return AWSDynamoDB.PutItemInput(conditionExpression: conditionExpression,
                                               expressionAttributeNames: expressionAttributeNames,
+                                              expressionAttributeValues: expressionAttributeValues,
                                               item: attributes,
                                               tableName: targetTableName)
-    }
-
-    internal func getInputForUpdateItem<AttributesType, ItemType>(
-            newItem: TypedDatabaseItem<AttributesType, ItemType>,
-            existingItem: TypedDatabaseItem<AttributesType, ItemType>) throws -> DynamoDBModel.PutItemInput {
-        let attributes = try getAttributes(forItem: newItem)
-
-        let expressionAttributeNames = [
-            "#rowversion": RowStatus.CodingKeys.rowVersion.stringValue,
-            "#createdate": TypedDatabaseItem<AttributesType, ItemType>.CodingKeys.createDate.stringValue]
-        let expressionAttributeValues = [
-            ":versionnumber": DynamoDBModel.AttributeValue(N: String(existingItem.rowStatus.rowVersion)),
-            ":creationdate": DynamoDBModel.AttributeValue(S: existingItem.createDate.iso8601)]
-
-        let conditionExpression = "#rowversion = :versionnumber AND #createdate = :creationdate"
-
-        return DynamoDBModel.PutItemInput(conditionExpression: conditionExpression,
-                                          expressionAttributeNames: expressionAttributeNames,
-                                          expressionAttributeValues: expressionAttributeValues,
-                                          item: attributes,
-                                          tableName: targetTableName)
-    }
-
-    internal func getInputForGetItem<AttributesType>(forKey key: CompositePrimaryKey<AttributesType>) throws -> DynamoDBModel.GetItemInput {
-        let attributeValue = try DynamoDBEncoder().encode(key)
-
-        if let keyAttributes = attributeValue.M {
-            return DynamoDBModel.GetItemInput(consistentRead: true,
-                                              key: keyAttributes,
-                                              tableName: targetTableName)
-        } else {
-            throw SmokeDynamoDBError.unexpectedResponse(reason: "Expected a structure.")
         }
-    }
-    
-    internal func getInputForBatchGetItem<AttributesType>(forKeys keys: [CompositePrimaryKey<AttributesType>]) throws
-    -> DynamoDBModel.BatchGetItemInput {
-        let keys = try keys.map { key -> DynamoDBModel.Key in
+
+        internal func getInputForGetItem<AttributesType>(forKey key: CompositePrimaryKey<AttributesType>) throws -> AWSDynamoDB.GetItemInput {
             let attributeValue = try DynamoDBEncoder().encode(key)
-            
-            if let keyAttributes = attributeValue.M {
-               return keyAttributes
+
+            if case let .m(keyAttributes) = attributeValue {
+                return AWSDynamoDB.GetItemInput(consistentRead: true,
+                                                  key: keyAttributes,
+                                                  tableName: targetTableName)
             } else {
                 throw SmokeDynamoDBError.unexpectedResponse(reason: "Expected a structure.")
             }
         }
-
-        let keysAndAttributes = KeysAndAttributes(consistentRead: true,
-                                                  keys: keys)
         
-        return DynamoDBModel.BatchGetItemInput(requestItems: [self.targetTableName: keysAndAttributes])
-    }
+        internal func getInputForBatchGetItem<AttributesType>(forKeys keys: [CompositePrimaryKey<AttributesType>]) throws
+        -> AWSDynamoDB.BatchGetItemInput {
+            let keys = try keys.map { key -> [String: AWSDynamoDB.DynamoDbClientTypes.AttributeValue] in
+                let attributeValue = try DynamoDBEncoder().encode(key)
+                
+                if case .m(let keyAttributes) = attributeValue {
+                   return keyAttributes
+                } else {
+                    throw SmokeDynamoDBError.unexpectedResponse(reason: "Expected a structure.")
+                }
+            }
 
-    internal func getInputForDeleteItem<AttributesType>(forKey key: CompositePrimaryKey<AttributesType>) throws -> DynamoDBModel.DeleteItemInput {
-        let attributeValue = try DynamoDBEncoder().encode(key)
+            let keysAndAttributes = AWSDynamoDB.DynamoDbClientTypes.KeysAndAttributes(consistentRead: true,
+                                                      keys: keys)
+            
+            return AWSDynamoDB.BatchGetItemInput(requestItems: [self.targetTableName: keysAndAttributes])
+        }
 
-        if let keyAttributes = attributeValue.M {
-            return DynamoDBModel.DeleteItemInput(key: keyAttributes,
+        internal func getInputForDeleteItem<AttributesType>(forKey key: CompositePrimaryKey<AttributesType>) throws -> AWSDynamoDB.DeleteItemInput {
+            let attributeValue = try DynamoDBEncoder().encode(key)
+
+            if case .m(let keyAttributes) = attributeValue {
+                return AWSDynamoDB.DeleteItemInput(key: keyAttributes,
+                                                     tableName: targetTableName)
+            } else {
+                throw SmokeDynamoDBError.unexpectedResponse(reason: "Expected a structure.")
+            }
+        }
+        
+        internal func getInputForDeleteItem<AttributesType, ItemType>(
+                existingItem: TypedDatabaseItem<AttributesType, ItemType>) throws -> AWSDynamoDB.DeleteItemInput {
+            let attributeValue = try DynamoDBEncoder().encode(existingItem.compositePrimaryKey)
+            
+            guard case .m(let keyAttributes) = attributeValue else {
+                throw SmokeDynamoDBError.unexpectedResponse(reason: "Expected a structure.")
+            }
+
+            let expressionAttributeNames = [
+                "#rowversion": RowStatus.CodingKeys.rowVersion.stringValue,
+                "#createdate": TypedDatabaseItem<AttributesType, ItemType>.CodingKeys.createDate.stringValue]
+            let expressionAttributeValues = [
+                ":versionnumber": AWSDynamoDB.DynamoDbClientTypes.AttributeValue.n(String(existingItem.rowStatus.rowVersion)),
+                ":creationdate": AWSDynamoDB.DynamoDbClientTypes.AttributeValue.s(existingItem.createDate.iso8601)]
+
+            let conditionExpression = "#rowversion = :versionnumber AND #createdate = :creationdate"
+
+            return AWSDynamoDB.DeleteItemInput(conditionExpression: conditionExpression,
+                                                 expressionAttributeNames: expressionAttributeNames,
+                                                 expressionAttributeValues: expressionAttributeValues,
+                                                 key: keyAttributes,
                                                  tableName: targetTableName)
-        } else {
-            throw SmokeDynamoDBError.unexpectedResponse(reason: "Expected a structure.")
         }
-    }
-    
-    internal func getInputForDeleteItem<AttributesType, ItemType>(
-            existingItem: TypedDatabaseItem<AttributesType, ItemType>) throws -> DynamoDBModel.DeleteItemInput {
-        let attributeValue = try DynamoDBEncoder().encode(existingItem.compositePrimaryKey)
-        
-        guard let keyAttributes = attributeValue.M else {
-            throw SmokeDynamoDBError.unexpectedResponse(reason: "Expected a structure.")
-        }
-
-        let expressionAttributeNames = [
-            "#rowversion": RowStatus.CodingKeys.rowVersion.stringValue,
-            "#createdate": TypedDatabaseItem<AttributesType, ItemType>.CodingKeys.createDate.stringValue]
-        let expressionAttributeValues = [
-            ":versionnumber": DynamoDBModel.AttributeValue(N: String(existingItem.rowStatus.rowVersion)),
-            ":creationdate": DynamoDBModel.AttributeValue(S: existingItem.createDate.iso8601)]
-
-        let conditionExpression = "#rowversion = :versionnumber AND #createdate = :creationdate"
-
-        return DynamoDBModel.DeleteItemInput(conditionExpression: conditionExpression,
-                                             expressionAttributeNames: expressionAttributeNames,
-                                             expressionAttributeValues: expressionAttributeValues,
-                                             key: keyAttributes,
-                                             tableName: targetTableName)
-    }
 }
 
 extension Array {

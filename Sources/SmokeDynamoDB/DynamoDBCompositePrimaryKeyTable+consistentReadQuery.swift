@@ -15,10 +15,6 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeHTTPClient
-import DynamoDBModel
-
 public extension DynamoDBCompositePrimaryKeyTable {
 
     func query<ReturnedType: PolymorphicOperationReturnType>(forPartitionKey partitionKey: String,

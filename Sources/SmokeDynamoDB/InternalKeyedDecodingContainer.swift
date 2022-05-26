@@ -15,8 +15,7 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import DynamoDBModel
+import AWSDynamoDB
 
 internal struct InternalKeyedDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtocol {
     typealias Key = K
@@ -105,8 +104,8 @@ internal struct InternalKeyedDecodingContainer<K: CodingKey>: KeyedDecodingConta
         return try createNestedContainer(for: key).unkeyedContainer()
     }
 
-    private func getValues() -> [String: DynamoDBModel.AttributeValue] {
-        guard let values = decodingContainer.attributeValue.M else {
+    private func getValues() -> [String: AWSDynamoDB.DynamoDbClientTypes.AttributeValue] {
+        guard case .m(let values) = decodingContainer.attributeValue else {
             fatalError("Expected keyed container and there wasn't one.")
         }
         
@@ -134,9 +133,8 @@ internal struct InternalKeyedDecodingContainer<K: CodingKey>: KeyedDecodingConta
     }
     
     // MARK: -
-
     private func createNestedContainer(for key: CodingKey) throws -> InternalSingleValueDecodingContainer {
-        guard let values = decodingContainer.attributeValue.M else {
+        guard case .m(let values) = decodingContainer.attributeValue else {
             let description = "Expected to decode a map."
             let context = DecodingError.Context(codingPath: codingPath, debugDescription: description)
             throw DecodingError.dataCorrupted(context)

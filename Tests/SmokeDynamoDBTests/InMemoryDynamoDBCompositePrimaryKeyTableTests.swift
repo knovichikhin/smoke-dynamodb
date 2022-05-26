@@ -17,8 +17,7 @@
 
 import XCTest
 @testable import SmokeDynamoDB
-import SmokeHTTPClient
-import DynamoDBModel
+import AWSDynamoDB
 
 enum TestPolymorphicOperationReturnType: PolymorphicOperationReturnType {
     typealias AttributesType = StandardPrimaryKeyAttributes

@@ -16,10 +16,6 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeHTTPClient
-import DynamoDBModel
-
 extension InMemoryDynamoDBCompositePrimaryKeyTableStore {
     
     func execute<ReturnedType: PolymorphicOperationReturnType>(

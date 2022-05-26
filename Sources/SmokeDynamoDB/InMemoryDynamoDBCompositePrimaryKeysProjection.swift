@@ -16,10 +16,6 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeHTTPClient
-import DynamoDBModel
-
 public class InMemoryDynamoDBCompositePrimaryKeysProjection: DynamoDBCompositePrimaryKeysProjection {
     internal let keysWrapper: InMemoryDynamoDBCompositePrimaryKeysProjectionStore
 

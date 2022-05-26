@@ -15,11 +15,9 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeAWSCore
-import DynamoDBModel
-import SmokeHTTPClient
-import Logging
+import AWSDynamoDB
+
+private typealias BatchStatementRequest = AWSDynamoDB.DynamoDbClientTypes.BatchStatementRequest
 
 // BatchExecuteStatement has a maximum of 25 statements
 private let maximumUpdatesPerExecuteStatement = 25

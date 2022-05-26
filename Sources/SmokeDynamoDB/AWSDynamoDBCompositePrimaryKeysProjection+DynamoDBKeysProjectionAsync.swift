@@ -16,10 +16,8 @@
 //
 
 import Foundation
-import SmokeAWSCore
-import DynamoDBModel
-import SmokeHTTPClient
-import Logging
+import AWSDynamoDB
+import ClientRuntime
 
 /// DynamoDBKeysProjection conformance async functions
 public extension AWSDynamoDBCompositePrimaryKeysProjection {
@@ -80,11 +78,11 @@ public extension AWSDynamoDBCompositePrimaryKeysProjection {
                                       scanIndexForward: Bool,
                                       exclusiveStartKey: String?) async throws
     -> ([CompositePrimaryKey<AttributesType>], String?) {
-        let queryInput = try DynamoDBModel.QueryInput.forSortKeyCondition(partitionKey: partitionKey, targetTableName: targetTableName,
-                                                                          primaryKeyType: AttributesType.self,
-                                                                          sortKeyCondition: sortKeyCondition, limit: limit,
-                                                                          scanIndexForward: scanIndexForward, exclusiveStartKey: exclusiveStartKey,
-                                                                          consistentRead: false)
+        let queryInput = try AWSDynamoDB.QueryInput.forSortKeyCondition(partitionKey: partitionKey, targetTableName: targetTableName,
+                                                                        primaryKeyType: AttributesType.self,
+                                                                        sortKeyCondition: sortKeyCondition, limit: limit,
+                                                                        scanIndexForward: scanIndexForward, exclusiveStartKey: exclusiveStartKey,
+                                                                        consistentRead: false)
         
         let logMessage = "dynamodb.query with partitionKey: \(partitionKey), " +
             "sortKeyCondition: \(sortKeyCondition.debugDescription), and table name \(targetTableName)."
@@ -113,8 +111,8 @@ public extension AWSDynamoDBCompositePrimaryKeysProjection {
                 
                 do {
                     items = try outputAttributeValues.map { values in
-                        let attributeValue = DynamoDBModel.AttributeValue(M: values)
-                        
+                        let attributeValue = AWSDynamoDB.DynamoDbClientTypes.AttributeValue.m(values)
+
                         return try DynamoDBDecoder().decode(attributeValue)
                     }
                 } catch {
@@ -126,8 +124,8 @@ public extension AWSDynamoDBCompositePrimaryKeysProjection {
                 return ([], lastEvaluatedKey)
             }
         } catch {
-            if let typedError = error as? DynamoDBError {
-                throw typedError.asSmokeDynamoDBError()
+            if case SdkError<QueryOutputError>.service(let serviceError, _) = error {
+                throw SmokeDynamoDBError.dynamoDBQueryError(cause: serviceError)
             }
             
             throw error.asUnrecognizedSmokeDynamoDBError()

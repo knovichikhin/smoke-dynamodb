@@ -15,11 +15,6 @@
 //  SmokeDynamoDB
 //
 
-import Foundation
-import SmokeHTTPClient
-import Logging
-import DynamoDBModel
-
 public extension DynamoDBCompositePrimaryKeyTable {
     /**
      Method to conditionally update an item at the specified key for a number of retries.

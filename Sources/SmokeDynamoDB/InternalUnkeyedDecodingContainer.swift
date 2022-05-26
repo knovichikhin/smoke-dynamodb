@@ -27,7 +27,6 @@ internal struct InternalUnkeyedDecodingContainer: UnkeyedDecodingContainer {
     }
 
     // MARK: - Swift.UnkeyedEncodingContainer Methods
-
     var codingPath: [CodingKey] {
         return decodingContainer.codingPath
     }
@@ -97,7 +96,7 @@ internal struct InternalUnkeyedDecodingContainer: UnkeyedDecodingContainer {
     }
     
     var count: Int? {
-        guard let values = decodingContainer.attributeValue.L else {
+        guard case .l(let values) = decodingContainer.attributeValue else {
             return nil
         }
         
@@ -105,11 +104,13 @@ internal struct InternalUnkeyedDecodingContainer: UnkeyedDecodingContainer {
     }
     
     var isAtEnd: Bool {
-        guard let values = decodingContainer.attributeValue.L else {
+        guard case .l(let values) = decodingContainer.attributeValue else {
             return true
         }
         
-        return currentIndex >= values.count
+        let count = values.count
+        
+        return currentIndex >= count
     }
     
     mutating func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws
@@ -131,12 +132,12 @@ internal struct InternalUnkeyedDecodingContainer: UnkeyedDecodingContainer {
         let index = currentIndex
         currentIndex += 1
         
-        guard let values = decodingContainer.attributeValue.L else {
+        guard case .l(let values) = decodingContainer.attributeValue else {
             let description = "Expected to decode a list."
             let context = DecodingError.Context(codingPath: codingPath, debugDescription: description)
             throw DecodingError.dataCorrupted(context)
         }
-        
+                
         guard index < values.count else {
             let description = "Could not find key for index \(index)."
             let context = DecodingError.Context(codingPath: codingPath, debugDescription: description)
