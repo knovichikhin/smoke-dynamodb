@@ -15,45 +15,33 @@
 //  SmokeDynamoDB
 //
 
+import AWSDynamoDB
 import AWSClientRuntime
 import Logging
 
 public class AWSDynamoDBCompositePrimaryKeysProjectionGenerator {
-    private let dynamodbGenerator: ClientGenerator
+    private let dynamodb: DynamoDbClient
     internal let targetTableName: String
-    
-    private enum ClientGenerator {
-        case fromConfig(AWSClientRuntime.AWSClientConfiguration)
-        case fromRegion(String)
-        case asDefault
-    }
     
     public init(config: AWSClientRuntime.AWSClientConfiguration,
                 tableName: String) {
-        self.dynamodbGenerator = .fromConfig(config)
+        self.dynamodb = DynamoDbClient(config: config)
         self.targetTableName = tableName
     }
     
     public init(region: String,
-                tableName: String) {
-        self.dynamodbGenerator = .fromRegion(region)
+                tableName: String) throws {
+        self.dynamodb = try DynamoDbClient(region: region)
         self.targetTableName = tableName
     }
     
     public init(tableName: String) async throws {
-        self.dynamodbGenerator = .asDefault
+        self.dynamodb = try await DynamoDbClient()
         self.targetTableName = tableName
     }
 
-    public func with(logger: Logging.Logger) async throws
+    public func with(logger: Logging.Logger)
     -> AWSDynamoDBCompositePrimaryKeysProjection {
-        switch self.dynamodbGenerator {
-        case .fromConfig(let config):
-            return AWSDynamoDBCompositePrimaryKeysProjection(config: config, tableName: self.targetTableName, logger: logger)
-        case .fromRegion(let region):
-            return try AWSDynamoDBCompositePrimaryKeysProjection(region: region, tableName: self.targetTableName, logger: logger)
-        case .asDefault:
-            return try await AWSDynamoDBCompositePrimaryKeysProjection(tableName: self.targetTableName, logger: logger)
-        }
+        return AWSDynamoDBCompositePrimaryKeysProjection(dynamodb: dynamodb, tableName: self.targetTableName, logger: logger)
     }
 }

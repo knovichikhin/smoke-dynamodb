@@ -59,6 +59,18 @@ public class AWSDynamoDBCompositePrimaryKeyTable: DynamoDBCompositePrimaryKeyTab
 
         self.logger.info("AWSDynamoDBTable created with table name '\(tableName)'")
     }
+    
+    internal init(dynamodb: DynamoDbClient,
+                  tableName: String,
+                  retryConfiguration: RetryConfiguration = .default,
+                  logger: Logger) {
+        self.dynamodb = dynamodb
+        self.targetTableName = tableName
+        self.retryConfiguration = retryConfiguration
+        self.logger = logger
+
+        self.logger.info("AWSDynamoDBTable created with table name '\(tableName)'")
+    }
 
     internal func getInputForInsert<AttributesType, ItemType>(_ item: TypedDatabaseItem<AttributesType, ItemType>) throws
             -> AWSDynamoDB.PutItemInput {

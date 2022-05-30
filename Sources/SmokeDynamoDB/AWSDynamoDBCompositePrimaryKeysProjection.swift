@@ -57,4 +57,14 @@ public class AWSDynamoDBCompositePrimaryKeysProjection: DynamoDBCompositePrimary
 
         self.logger.info("AWSDynamoDBCompositePrimaryKeysProjection created with table name '\(tableName)'")
     }
+    
+    internal init(dynamodb: DynamoDbClient,
+                  tableName: String,
+                  logger: Logger) {
+        self.dynamodb = dynamodb
+        self.targetTableName = tableName
+        self.logger = logger
+
+        self.logger.info("AWSDynamoDBCompositePrimaryKeysProjection created with table name '\(tableName)'")
+    }
 }

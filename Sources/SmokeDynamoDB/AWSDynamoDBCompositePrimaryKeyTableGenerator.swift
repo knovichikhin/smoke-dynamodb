@@ -15,55 +15,41 @@
 //  SmokeDynamoDB
 //
 
+import AWSDynamoDB
 import AWSClientRuntime
 import Logging
 
 public class AWSDynamoDBCompositePrimaryKeyTableGenerator {
-    private let dynamodbGenerator: ClientGenerator
+    private let dynamodb: DynamoDbClient
     internal let targetTableName: String
     internal let retryConfiguration: RetryConfiguration
-    
-    private enum ClientGenerator {
-        case fromConfig(AWSClientRuntime.AWSClientConfiguration)
-        case fromRegion(String)
-        case asDefault
-    }
     
     public init(config: AWSClientRuntime.AWSClientConfiguration,
                 tableName: String,
                 retryConfiguration: RetryConfiguration = .default) {
-        self.dynamodbGenerator = .fromConfig(config)
+        self.dynamodb = DynamoDbClient(config: config)
         self.targetTableName = tableName
         self.retryConfiguration = retryConfiguration
     }
     
     public init(region: String,
                 tableName: String,
-                retryConfiguration: RetryConfiguration = .default) {
-        self.dynamodbGenerator = .fromRegion(region)
+                retryConfiguration: RetryConfiguration = .default) throws {
+        self.dynamodb = try DynamoDbClient(region: region)
         self.targetTableName = tableName
         self.retryConfiguration = retryConfiguration
     }
     
     public init(tableName: String,
                 retryConfiguration: RetryConfiguration = .default) async throws {
-        self.dynamodbGenerator = .asDefault
+        self.dynamodb = try await DynamoDbClient()
         self.targetTableName = tableName
         self.retryConfiguration = retryConfiguration
     }
 
-    public func with(logger: Logging.Logger) async throws
+    public func with(logger: Logging.Logger)
     -> AWSDynamoDBCompositePrimaryKeyTable {
-        switch self.dynamodbGenerator {
-        case .fromConfig(let config):
-            return AWSDynamoDBCompositePrimaryKeyTable(config: config, tableName: self.targetTableName,
-                                                       retryConfiguration: self.retryConfiguration, logger: logger)
-        case .fromRegion(let region):
-            return try AWSDynamoDBCompositePrimaryKeyTable(region: region, tableName: self.targetTableName,
-                                                           retryConfiguration: self.retryConfiguration, logger: logger)
-        case .asDefault:
-            return try await AWSDynamoDBCompositePrimaryKeyTable(tableName: self.targetTableName,
-                                                                 retryConfiguration: self.retryConfiguration, logger: logger)
-        }
+        return AWSDynamoDBCompositePrimaryKeyTable(dynamodb: self.dynamodb, tableName: self.targetTableName,
+                                                   retryConfiguration: self.retryConfiguration, logger: logger)
     }
 }
