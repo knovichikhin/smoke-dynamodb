@@ -39,6 +39,12 @@ public typealias ExecuteItemFilterType = (String, String, String, PolymorphicOpe
 public struct InMemoryDynamoDBCompositePrimaryKeyTable: DynamoDBCompositePrimaryKeyTable {
     internal let storeWrapper: InMemoryDynamoDBCompositePrimaryKeyTableStore
     
+    public var store: [String: [String: PolymorphicOperationReturnTypeConvertable]] {
+        get async {
+            return await self.storeWrapper.store
+        }
+    }
+    
     public init(executeItemFilter: ExecuteItemFilterType? = nil) {
         self.storeWrapper = InMemoryDynamoDBCompositePrimaryKeyTableStore(executeItemFilter: executeItemFilter)
     }
