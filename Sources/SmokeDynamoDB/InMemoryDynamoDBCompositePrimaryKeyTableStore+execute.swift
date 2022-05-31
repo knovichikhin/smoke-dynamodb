@@ -23,77 +23,119 @@ import DynamoDBModel
 extension InMemoryDynamoDBCompositePrimaryKeyTableStore {
     
     func execute<ReturnedType: PolymorphicOperationReturnType>(
-            partitionKeys: [String],
-            attributesFilter: [String]?,
-            additionalWhereClause: String?) throws
+        partitionKeys: [String],
+        attributesFilter: [String]?,
+        additionalWhereClause: String?) async throws
     -> [ReturnedType] {
-        let items = self.getExecuteItems(partitionKeys: partitionKeys, additionalWhereClause: additionalWhereClause)
-           
-        let returnedItems: [ReturnedType] = try items.map { item in
-            return try self.convertToQueryableType(input: item)
+        return try await withUnsafeThrowingContinuation { continuation in
+            accessQueue.async {
+                let items = self.getExecuteItems(partitionKeys: partitionKeys, additionalWhereClause: additionalWhereClause)
+                   
+                let returnedItems: [ReturnedType]
+                do {
+                    returnedItems = try items.map { item in
+                        return try self.convertToQueryableType(input: item)
+                    }
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                continuation.resume(returning: returnedItems)
+            }
         }
-        
-        return returnedItems
     }
     
     func execute<ReturnedType: PolymorphicOperationReturnType>(
-            partitionKeys: [String],
-            attributesFilter: [String]?,
-            additionalWhereClause: String?, nextToken: String?) throws
-    -> ([ReturnedType], String?)  {
-        let items = self.getExecuteItems(partitionKeys: partitionKeys, additionalWhereClause: additionalWhereClause)
-           
-        let returnedItems: [ReturnedType] = try items.map { item in
-            return try self.convertToQueryableType(input: item)
-        }
-        
-        return (returnedItems, nil)
-    }
-    
-    func monomorphicExecute<AttributesType, ItemType>(
-            partitionKeys: [String],
-            attributesFilter: [String]?,
-            additionalWhereClause: String?) throws
-    -> [TypedDatabaseItem<AttributesType, ItemType>] {
-        let items = self.getExecuteItems(partitionKeys: partitionKeys, additionalWhereClause: additionalWhereClause)
-           
-        let returnedItems: [TypedDatabaseItem<AttributesType, ItemType>] = try items.map { item in
-            guard let typedItem = item as? TypedDatabaseItem<AttributesType, ItemType> else {
-                let foundType = type(of: item)
-                let description = "Expected to decode \(TypedDatabaseItem<AttributesType, ItemType>.self). Instead found \(foundType)."
-                let context = DecodingError.Context(codingPath: [], debugDescription: description)
-                let error = DecodingError.typeMismatch(TypedDatabaseItem<AttributesType, ItemType>.self, context)
-                    
-                throw error
-            }
+        partitionKeys: [String],
+        attributesFilter: [String]?,
+        additionalWhereClause: String?,
+        nextToken: String?) async throws
+    -> ([ReturnedType], String?) {
+        return try await withUnsafeThrowingContinuation { continuation in
+            accessQueue.async {
+                let items = self.getExecuteItems(partitionKeys: partitionKeys, additionalWhereClause: additionalWhereClause)
+                   
+                let returnedItems: [ReturnedType]
+                do {
+                    returnedItems = try items.map { item in
+                        return try self.convertToQueryableType(input: item)
+                    }
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
+                }
                 
-            return typedItem
+                continuation.resume(returning: (returnedItems, nil))
+            }
         }
-        
-        return returnedItems
     }
     
     func monomorphicExecute<AttributesType, ItemType>(
         partitionKeys: [String],
         attributesFilter: [String]?,
-        additionalWhereClause: String?, nextToken: String?) throws
-    -> ([TypedDatabaseItem<AttributesType, ItemType>], String?) {
-        let items = self.getExecuteItems(partitionKeys: partitionKeys, additionalWhereClause: additionalWhereClause)
-           
-        let returnedItems: [TypedDatabaseItem<AttributesType, ItemType>] = try items.map { item in
-            guard let typedItem = item as? TypedDatabaseItem<AttributesType, ItemType> else {
-                let foundType = type(of: item)
-                let description = "Expected to decode \(TypedDatabaseItem<AttributesType, ItemType>.self). Instead found \(foundType)."
-                let context = DecodingError.Context(codingPath: [], debugDescription: description)
-                let error = DecodingError.typeMismatch(TypedDatabaseItem<AttributesType, ItemType>.self, context)
-                    
-                throw error
-            }
+        additionalWhereClause: String?) async throws
+    -> [TypedDatabaseItem<AttributesType, ItemType>] {
+        return try await withUnsafeThrowingContinuation { continuation in
+            accessQueue.async {
+                let items = self.getExecuteItems(partitionKeys: partitionKeys, additionalWhereClause: additionalWhereClause)
+                   
+                let returnedItems: [TypedDatabaseItem<AttributesType, ItemType>]
+                do {
+                    returnedItems = try items.map { item in
+                        guard let typedItem = item as? TypedDatabaseItem<AttributesType, ItemType> else {
+                            let foundType = type(of: item)
+                            let description = "Expected to decode \(TypedDatabaseItem<AttributesType, ItemType>.self). Instead found \(foundType)."
+                            let context = DecodingError.Context(codingPath: [], debugDescription: description)
+                            let error = DecodingError.typeMismatch(TypedDatabaseItem<AttributesType, ItemType>.self, context)
+                            
+                            throw error
+                        }
+                        
+                        return typedItem
+                    }
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
+                }
                 
-            return typedItem
+                continuation.resume(returning: returnedItems)
+            }
         }
-        
-        return (returnedItems, nil)
+    }
+    
+    func monomorphicExecute<AttributesType, ItemType>(
+        partitionKeys: [String],
+        attributesFilter: [String]?,
+        additionalWhereClause: String?,
+        nextToken: String?) async throws
+    -> ([TypedDatabaseItem<AttributesType, ItemType>], String?) {
+        return try await withUnsafeThrowingContinuation { continuation in
+            accessQueue.async {
+                let items = self.getExecuteItems(partitionKeys: partitionKeys, additionalWhereClause: additionalWhereClause)
+                   
+                let returnedItems: [TypedDatabaseItem<AttributesType, ItemType>]
+                do {
+                    returnedItems = try items.map { item in
+                        guard let typedItem = item as? TypedDatabaseItem<AttributesType, ItemType> else {
+                            let foundType = type(of: item)
+                            let description = "Expected to decode \(TypedDatabaseItem<AttributesType, ItemType>.self). Instead found \(foundType)."
+                            let context = DecodingError.Context(codingPath: [], debugDescription: description)
+                            let error = DecodingError.typeMismatch(TypedDatabaseItem<AttributesType, ItemType>.self, context)
+                            
+                            throw error
+                        }
+                        
+                        return typedItem
+                    }
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                continuation.resume(returning: (returnedItems, nil))
+            }
+        }
     }
     
     func getExecuteItems(partitionKeys: [String],

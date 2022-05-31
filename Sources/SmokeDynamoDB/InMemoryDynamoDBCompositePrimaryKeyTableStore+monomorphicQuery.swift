@@ -23,97 +23,109 @@ import DynamoDBModel
 extension InMemoryDynamoDBCompositePrimaryKeyTableStore {
     
     func monomorphicGetItems<AttributesType, ItemType>(
-        forKeys keys: [CompositePrimaryKey<AttributesType>]) throws
+        forKeys keys: [CompositePrimaryKey<AttributesType>]) async throws
     -> [CompositePrimaryKey<AttributesType>: TypedDatabaseItem<AttributesType, ItemType>] {
-        var map: [CompositePrimaryKey<AttributesType>: TypedDatabaseItem<AttributesType, ItemType>] = [:]
-        
-        try keys.forEach { key in
-            if let partition = self.store[key.partitionKey] {
+        return try await withUnsafeThrowingContinuation { continuation in
+            accessQueue.async {
+                var map: [CompositePrimaryKey<AttributesType>: TypedDatabaseItem<AttributesType, ItemType>] = [:]
+                
+                keys.forEach { key in
+                    if let partition = self.store[key.partitionKey] {
 
-                guard let value = partition[key.sortKey] else {
-                    return
+                        guard let value = partition[key.sortKey] else {
+                            return
+                        }
+                        
+                        guard let item = value as? TypedDatabaseItem<AttributesType, ItemType> else {
+                            let foundType = type(of: value)
+                            let description = "Expected to decode \(TypedDatabaseItem<AttributesType, ItemType>.self). Instead found \(foundType)."
+                            let context = DecodingError.Context(codingPath: [], debugDescription: description)
+                            let error = DecodingError.typeMismatch(TypedDatabaseItem<AttributesType, ItemType>.self, context)
+                            
+                            continuation.resume(throwing: error)
+                            return
+                        }
+                        
+                        map[key] = item
+                    }
                 }
                 
-                guard let item = value as? TypedDatabaseItem<AttributesType, ItemType> else {
-                    let foundType = type(of: value)
-                    let description = "Expected to decode \(TypedDatabaseItem<AttributesType, ItemType>.self). Instead found \(foundType)."
-                    let context = DecodingError.Context(codingPath: [], debugDescription: description)
-                    
-                    throw DecodingError.typeMismatch(TypedDatabaseItem<AttributesType, ItemType>.self, context)
-                }
-                
-                map[key] = item
+                continuation.resume(returning: map)
             }
         }
-        
-        return map
     }
     
     func monomorphicQuery<AttributesType, ItemType>(forPartitionKey partitionKey: String,
-                                                    sortKeyCondition: AttributeCondition?,
-                                                    consistentRead: Bool) throws
+                                                           sortKeyCondition: AttributeCondition?,
+                                                           consistentRead: Bool) async throws
     -> [TypedDatabaseItem<AttributesType, ItemType>] {
-        var items: [TypedDatabaseItem<AttributesType, ItemType>] = []
+        return try await withUnsafeThrowingContinuation { continuation in
+            accessQueue.async {
+                var items: [TypedDatabaseItem<AttributesType, ItemType>] = []
 
-        if let partition = self.store[partitionKey] {
-            let sortedPartition = partition.sorted(by: { (left, right) -> Bool in
-                return left.key < right.key
-            })
-            
-            sortKeyIteration: for (sortKey, value) in sortedPartition {
-                if let currentSortKeyCondition = sortKeyCondition {
-                    switch currentSortKeyCondition {
-                    case .equals(let value):
-                        if !(value == sortKey) {
-                            // don't include this in the results
-                            continue sortKeyIteration
+                if let partition = self.store[partitionKey] {
+                    let sortedPartition = partition.sorted(by: { (left, right) -> Bool in
+                        return left.key < right.key
+                    })
+                    
+                    sortKeyIteration: for (sortKey, value) in sortedPartition {
+                        if let currentSortKeyCondition = sortKeyCondition {
+                            switch currentSortKeyCondition {
+                            case .equals(let value):
+                                if !(value == sortKey) {
+                                    // don't include this in the results
+                                    continue sortKeyIteration
+                                }
+                            case .lessThan(let value):
+                                if !(sortKey < value) {
+                                    // don't include this in the results
+                                    continue sortKeyIteration
+                                }
+                            case .lessThanOrEqual(let value):
+                                if !(sortKey <= value) {
+                                    // don't include this in the results
+                                    continue sortKeyIteration
+                                }
+                            case .greaterThan(let value):
+                                if !(sortKey > value) {
+                                    // don't include this in the results
+                                    continue sortKeyIteration
+                                }
+                            case .greaterThanOrEqual(let value):
+                                if !(sortKey >= value) {
+                                    // don't include this in the results
+                                    continue sortKeyIteration
+                                }
+                            case .between(let value1, let value2):
+                                if !(sortKey > value1 && sortKey < value2) {
+                                    // don't include this in the results
+                                    continue sortKeyIteration
+                                }
+                            case .beginsWith(let value):
+                                if !(sortKey.hasPrefix(value)) {
+                                    // don't include this in the results
+                                    continue sortKeyIteration
+                                }
+                            }
                         }
-                    case .lessThan(let value):
-                        if !(sortKey < value) {
-                            // don't include this in the results
-                            continue sortKeyIteration
-                        }
-                    case .lessThanOrEqual(let value):
-                        if !(sortKey <= value) {
-                            // don't include this in the results
-                            continue sortKeyIteration
-                        }
-                    case .greaterThan(let value):
-                        if !(sortKey > value) {
-                            // don't include this in the results
-                            continue sortKeyIteration
-                        }
-                    case .greaterThanOrEqual(let value):
-                        if !(sortKey >= value) {
-                            // don't include this in the results
-                            continue sortKeyIteration
-                        }
-                    case .between(let value1, let value2):
-                        if !(sortKey > value1 && sortKey < value2) {
-                            // don't include this in the results
-                            continue sortKeyIteration
-                        }
-                    case .beginsWith(let value):
-                        if !(sortKey.hasPrefix(value)) {
-                            // don't include this in the results
-                            continue sortKeyIteration
+
+                        if let typedValue = value as? TypedDatabaseItem<AttributesType, ItemType> {
+                            items.append(typedValue)
+                        } else {
+                            let description = "Expected type \(TypedDatabaseItem<AttributesType, ItemType>.self), "
+                                + " was \(type(of: value))."
+                            let context = DecodingError.Context(codingPath: [], debugDescription: description)
+                            let error = DecodingError.typeMismatch(TypedDatabaseItem<AttributesType, ItemType>.self, context)
+                            
+                            continuation.resume(throwing: error)
+                            return
                         }
                     }
                 }
 
-                if let typedValue = value as? TypedDatabaseItem<AttributesType, ItemType> {
-                    items.append(typedValue)
-                } else {
-                    let description = "Expected type \(TypedDatabaseItem<AttributesType, ItemType>.self), "
-                        + " was \(type(of: value))."
-                    let context = DecodingError.Context(codingPath: [], debugDescription: description)
-                    
-                    throw DecodingError.typeMismatch(TypedDatabaseItem<AttributesType, ItemType>.self, context)
-                }
+                continuation.resume(returning: items)
             }
         }
-
-        return items
     }
     
     func monomorphicQuery<AttributesType, ItemType>(forPartitionKey partitionKey: String,
@@ -121,12 +133,12 @@ extension InMemoryDynamoDBCompositePrimaryKeyTableStore {
                                                     limit: Int?,
                                                     scanIndexForward: Bool,
                                                     exclusiveStartKey: String?,
-                                                    consistentRead: Bool) throws
+                                                    consistentRead: Bool) async throws
     -> ([TypedDatabaseItem<AttributesType, ItemType>], String?) {
         // get all the results
-        let rawItems: [TypedDatabaseItem<AttributesType, ItemType>] = try monomorphicQuery(forPartitionKey: partitionKey,
-                                                                                           sortKeyCondition: sortKeyCondition,
-                                                                                           consistentRead: consistentRead)
+        let rawItems: [TypedDatabaseItem<AttributesType, ItemType>] = try await monomorphicQuery(forPartitionKey: partitionKey,
+                                                                                                 sortKeyCondition: sortKeyCondition,
+                                                                                                 consistentRead: consistentRead)
         
         let items: [TypedDatabaseItem<AttributesType, ItemType>]
         if !scanIndexForward {

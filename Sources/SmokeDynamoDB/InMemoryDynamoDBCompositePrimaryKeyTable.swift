@@ -41,7 +41,7 @@ public struct InMemoryDynamoDBCompositePrimaryKeyTable: DynamoDBCompositePrimary
     
     public var store: [String: [String: PolymorphicOperationReturnTypeConvertable]] {
         get async {
-            return await self.storeWrapper.store
+            return await self.storeWrapper.getStore()
         }
     }
     
@@ -82,7 +82,7 @@ public struct InMemoryDynamoDBCompositePrimaryKeyTable: DynamoDBCompositePrimary
     }
 
     public func deleteItem<AttributesType>(forKey key: CompositePrimaryKey<AttributesType>) async throws {
-        return try await storeWrapper.deleteItem(forKey: key)
+        return await storeWrapper.deleteItem(forKey: key)
     }
     
     public func deleteItems<AttributesType>(forKeys keys: [CompositePrimaryKey<AttributesType>]) async throws {
